@@ -1,0 +1,57 @@
+{
+  "name": "signature-mint-erc721",
+  "version": "1.0.0",
+  "description": "Contracts to lazy mint ERC721 NFTs.",
+  "source": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/module/index.d.ts",
+  "files": [
+    "./contracts/**/*.sol",
+    "./abis"
+  ],
+  "scripts": {
+    "build": "yarn hardhat:compile && yarn copy-abis",
+    "format": "prettier --write \"./**/*.{ts,tsx,json,md,sol}\"",
+    "clean": "yarn hardhat:clean && rimraf artifacts dist abis build",
+    "lint": "solhint 'contracts/**/*.sol'",
+    "test": "hardhat test",
+    "hardhat:compile": "hardhat compile",
+    "hardhat:clean": "hardhat clean",
+    "copy-abis": "ts-node copy-abis.ts"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.0",
+    "@nomiclabs/hardhat-waffle": "^2.0.0",
+    "@openzeppelin/contracts": "^4.6.0",
+    "@types/chai": "^4.3.1",
+    "@types/chai-as-promised": "^7.1.5",
+    "@types/glob": "^7.2.0",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "^17.0.35",
+    "chai": "^4.3.6",
+    "chai-as-promised": "^7.1.1",
+    "dotenv": "^16.0.1",
+    "ethereum-waffle": "^3.0.0",
+    "ethers": "^5.0.0",
+    "hardhat": "^2.9.6",
+    "mocha": "^10.0.0",
+    "prettier": "^2.6.2",
+    "prettier-plugin-solidity": "^1.0.0-beta.19",
+    "rimraf": "^3.0.2",
+    "solhint": "^3.3.7",
+    "solhint-plugin-prettier": "^0.0.5",
+    "ts-node": "^10.7.0",
+    "typescript": "^4.6.4"
+  },
+  "keywords": [],
+  "author": "0xSaturn",
+  "license": "MIT",
+  "homepage": "https://github.com/0xsaturn/cryptore-store-contracts#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xsaturn/cryptore-store-contracts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/0xsaturn/cryptore-store-contracts/issues"
+  }
+}
