@@ -12,7 +12,7 @@
   "scripts": {
     "build": "yarn hardhat:compile && yarn copy-abis",
     "format": "prettier --write \"./**/*.{ts,tsx,json,md,sol}\"",
-    "clean": "yarn hardhat:clean && rimraf artifacts dist abis build",
+    "clean": "yarn hardhat:clean && rimraf artifacts dist build",
     "lint": "solhint 'contracts/**/*.sol'",
     "test": "hardhat test",
     "hardhat:compile": "hardhat compile",

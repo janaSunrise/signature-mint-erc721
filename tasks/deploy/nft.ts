@@ -16,5 +16,5 @@ task('deploy:NFT')
 
     await nft.deployed();
 
-    console.log('NFT contract deployed to: ', nft.address);
+    console.log('NFT contract deployed to:', nft.address);
   });

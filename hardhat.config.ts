@@ -1,11 +1,13 @@
 import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
+import '@typechain/hardhat';
 
 import dotenv from 'dotenv';
 import { HardhatUserConfig } from 'hardhat/config';
 import { NetworkUserConfig } from 'hardhat/types';
 
 import './tasks/accounts';
+import './tasks/nft';
 import './tasks/deploy';
 
 dotenv.config();
