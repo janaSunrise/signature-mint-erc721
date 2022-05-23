@@ -11,3 +11,8 @@ export interface SignatureMintPayload {
 export type SignatureMintPayloadWithTokenId = SignatureMintPayload & {
   tokenId: BigNumberish;
 };
+
+export interface PayloadWithSign {
+  payload: SignatureMintPayloadWithTokenId;
+  signature: string;
+}

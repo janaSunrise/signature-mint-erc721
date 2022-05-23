@@ -142,13 +142,13 @@ npx hardhat nft:generate-signature
 
 The flags for this task are:
 
-| Flag              | Optional                       | Usage                                              |
-| ----------------- | ------------------------------ | -------------------------------------------------- |
-| `contract`        | NO                             | The address of the deployed NFT contract           |
-| `metadata`        | NO                             | The metadata for the NFT to be minted              |
-| `paymentreceiver` | NO                             | The address which receives the payment for the NFT |
-| `to`              | Yes. Defaults to Zero address. | The address which receives the NFT.                |
-| `price`           | Yes. Defaults to zero.         | The price for the NFT.                             |
+| Flag              | Optional                       | Usage                                                |
+| ----------------- | ------------------------------ | ---------------------------------------------------- |
+| `contract`        | NO                             | The address of the deployed NFT contract             |
+| `metadata`        | NO                             | The URI containing metadata for the NFT to be minted |
+| `paymentreceiver` | NO                             | The address which receives the payment for the NFT   |
+| `to`              | Yes. Defaults to Zero address. | The address which receives the NFT.                  |
+| `price`           | Yes. Defaults to zero.         | The price for the NFT.                               |
 
 ### Verifying a signature
 

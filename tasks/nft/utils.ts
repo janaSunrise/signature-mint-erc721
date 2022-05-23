@@ -2,9 +2,19 @@ import { Contract, utils } from 'ethers';
 
 import { abi as NFTAbi } from '../../abis/NFT.json';
 
-import type { BytesLike, Signer } from 'ethers';
-import type { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
-import type { SignatureMintPayloadWithTokenId } from './types';
+import type {
+  BigNumberish,
+  BytesLike,
+  CallOverrides,
+  ContractFunction,
+  Signer
+} from 'ethers';
+import type {
+  JsonRpcProvider,
+  JsonRpcSigner,
+  TransactionReceipt
+} from '@ethersproject/providers';
+import type { SignatureMintPayloadWithTokenId, PayloadWithSign } from './types';
 
 export const NATIVE_TOKEN_ADDRESS =
   '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
@@ -30,50 +40,179 @@ export const SignatureMintVoucher = [
   }
 ];
 
-// Utility functions
-export const initializeContract = (address: string, signer: Signer) => {
-  return new Contract(address, NFTAbi, signer);
-};
+export class LazyMinter {
+  public contract: Contract;
+  public signer: Signer;
 
-export const getRoleHash = (role: string = ''): BytesLike => {
-  if (role === '') {
-    return utils.hexZeroPad([0], 32);
+  constructor(address: string, signer: Signer) {
+    this.contract = new Contract(address, NFTAbi, signer);
+    this.signer = signer;
   }
 
-  return utils.id(role);
-};
+  // Utility functions
+  public getRoleHash(role: string = ''): BytesLike {
+    if (role === '') {
+      return utils.hexZeroPad([0], 32);
+    }
 
-export const signTypedData = async (
-  signer: Signer,
-  domain: {
-    name: string;
-    version: string;
-    chainId: number;
-    verifyingContract: string;
-  },
-  types: any,
-  message: any
-): Promise<BytesLike> => {
-  const provider = signer.provider as JsonRpcProvider;
-
-  if (!provider) {
-    throw new Error('No provider is available');
+    return utils.id(role);
   }
 
-  return await (signer as JsonRpcSigner)._signTypedData(domain, types, message);
-};
+  public async getChainId(): Promise<number> {
+    const provider = this.signer.provider;
 
-export const payloadToMintStruct = (
-  payload: SignatureMintPayloadWithTokenId
-) => {
-  const parsedPrice = utils.parseEther(payload.price.toString());
+    if (!provider) {
+      throw new Error('No provider is available');
+    }
 
-  return {
-    tokenId: payload.tokenId,
-    to: payload.to,
-    uri: payload.uri,
-    price: parsedPrice,
-    currency: payload.currencyAddress,
-    paymentReceiver: payload.paymentReceiver
-  };
-};
+    const { chainId } = await provider.getNetwork();
+    return chainId;
+  }
+
+  public async sendTransaction(
+    func: string,
+    args: any[],
+    callOverrides?: CallOverrides
+  ): Promise<TransactionReceipt> {
+    if (!callOverrides) {
+      callOverrides = {};
+    }
+
+    const fn: ContractFunction = this.contract.functions[func];
+
+    if (!func) {
+      throw new Error('Invalid function.');
+    }
+
+    const tx = await fn(...args, callOverrides);
+
+    return await tx.wait();
+  }
+
+  public async signTypedData(
+    signer: Signer,
+    domain: {
+      name: string;
+      version: string;
+      chainId: number;
+      verifyingContract: string;
+    },
+    types: any,
+    message: any
+  ): Promise<BytesLike> {
+    const provider = signer.provider as JsonRpcProvider;
+
+    if (!provider) {
+      throw new Error('No provider is available');
+    }
+
+    return await (signer as JsonRpcSigner)._signTypedData(
+      domain,
+      types,
+      message
+    );
+  }
+
+  public payloadToMintStruct(payload: SignatureMintPayloadWithTokenId) {
+    const parsedPrice = utils.parseEther(payload.price.toString());
+
+    return {
+      tokenId: payload.tokenId,
+      to: payload.to,
+      uri: payload.uri,
+      price: parsedPrice,
+      currency: payload.currencyAddress,
+      paymentReceiver: payload.paymentReceiver
+    };
+  }
+
+  // Contract functions
+  public async nextTokenId(): Promise<number> {
+    return await this.contract.nextTokenId();
+  }
+
+  public async getAllRoleMembers(role: string): Promise<string[]> {
+    const roleHash = this.getRoleHash(role);
+    const memberCount = await this.contract.getRoleMemberCount(roleHash);
+
+    return await Promise.all(
+      Array.from(Array(memberCount).keys()).map(i =>
+        this.contract.getRoleMember(roleHash, i)
+      )
+    );
+  }
+
+  public async grantRole(role: string, address: string) {
+    const roleHash = this.getRoleHash(role);
+
+    return await this.sendTransaction('grantRole', [roleHash, address]);
+  }
+
+  public async generateSignature(payload: {
+    to: string;
+    metadata: string;
+    price: BigNumberish;
+    paymentreceiver: string;
+  }) {
+    const chainId = await this.getChainId();
+    const nextTokenId = await this.nextTokenId();
+
+    const minterMembers = await this.getAllRoleMembers('MINTER_ROLE');
+
+    if (!minterMembers.includes(await this.signer.getAddress())) {
+      throw new Error('Only minters can mint');
+    }
+
+    const constructedPayload: SignatureMintPayloadWithTokenId = {
+      to: payload.to,
+      uri: payload.metadata,
+      price: payload.price,
+      paymentReceiver: payload.paymentreceiver,
+      tokenId: nextTokenId,
+      currencyAddress: NATIVE_TOKEN_ADDRESS
+    };
+
+    const signature = await this.signTypedData(
+      this.signer,
+      {
+        name: 'SignatureMintNFT',
+        version: '1',
+        chainId,
+        verifyingContract: this.contract.address
+      },
+      { MintVoucher: SignatureMintVoucher },
+      this.payloadToMintStruct(constructedPayload)
+    );
+
+    return {
+      payload: constructedPayload,
+      signature: signature.toString()
+    };
+  }
+
+  public async verifySignature(
+    payloadWithSignature: PayloadWithSign
+  ): Promise<boolean> {
+    const message = this.payloadToMintStruct(
+      payloadWithSignature.payload
+    );
+
+    const [success] = await this.contract.verify(
+      message,
+      payloadWithSignature.signature
+    );
+
+    return success;
+  }
+
+  public async signatureMint(payloadWithSignature: PayloadWithSign) {
+    const payload = payloadWithSignature.payload;
+    const sign = payloadWithSignature.signature;
+
+    const message = this.payloadToMintStruct(payload);
+
+    return await this.sendTransaction('signatureMint', [message, sign], {
+      value: message.price
+    });
+  }
+}

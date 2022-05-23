@@ -1,20 +1,10 @@
 import { task, types } from 'hardhat/config';
-import { constants, BigNumber } from 'ethers';
+import { constants } from 'ethers';
 
 import type { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import type { TaskArguments } from 'hardhat/types';
-import type { JsonRpcProvider } from '@ethersproject/providers';
 
-import {
-  initializeContract,
-  getRoleHash,
-  payloadToMintStruct,
-  signTypedData,
-  SignatureMintVoucher,
-  NATIVE_TOKEN_ADDRESS
-} from './utils';
-
-import type { SignatureMintPayloadWithTokenId } from './types';
+import { LazyMinter } from './utils';
 
 task('nft:add-minter')
   .addParam('contract', 'The address of the NFT contract')
@@ -22,23 +12,19 @@ task('nft:add-minter')
   .setAction(async function (taskArguments: TaskArguments, { ethers }) {
     const signers: SignerWithAddress[] = await ethers.getSigners();
 
-    const nftContract = initializeContract(taskArguments.contract, signers[0]);
+    const lazyMinter = new LazyMinter(taskArguments.contract, signers[0]);
 
-    const minterRoleHash = getRoleHash('MINTER_ROLE');
-
-    const tx = await nftContract.functions['grantRole'](
-      minterRoleHash,
+    const receipt = await lazyMinter.grantRole(
+      'MINTER_ROLE',
       taskArguments.address
     );
 
-    const receipt = await tx.wait();
-
-    console.log('Tx hash:', receipt.transactionHash);
+    console.log(`Transaction hash: ${receipt.transactionHash}`);
   });
 
 task('nft:generate-signature')
   .addParam('contract', 'The address of the NFT contract')
-  .addParam('metadata', 'The Metadata for the NFT')
+  .addParam('metadata', 'The URI containing metadata for the NFT')
   .addParam('paymentreceiver', 'Who receives the payment for the NFT')
   .addParam(
     'to',
@@ -48,64 +34,17 @@ task('nft:generate-signature')
   .addParam('price', 'The price for the NFT', 0, types.int)
   .setAction(async function (taskArguments: TaskArguments, { ethers }) {
     const signers: SignerWithAddress[] = await ethers.getSigners();
-    const currentSigner = signers[0];
 
-    const provider = currentSigner.provider as JsonRpcProvider;
-    const { chainId } = await provider.getNetwork();
+    const lazyMinter = new LazyMinter(taskArguments.contract, signers[0]);
 
-    const nftContract = initializeContract(
-      taskArguments.contract,
-      currentSigner
-    );
-
-    // Check if the signer has the `MINTER_ROLE`
-    const minterRoleHash = getRoleHash('MINTER_ROLE');
-    const minterCount = await nftContract.getRoleMemberCount(minterRoleHash);
-
-    const members = await Promise.all(
-      Array.from(Array(minterCount).keys()).map(i =>
-        nftContract.getRoleMember(minterRoleHash, i)
-      )
-    );
-
-    if (!members.includes(currentSigner.address)) {
-      throw new Error(
-        `The signer ${currentSigner.address} does not have the MINTER_ROLE`
-      );
-    }
-
-    const nextTokenId = await nftContract.nextTokenId();
-
-    // Construct the payload
-    const constructedPayload: SignatureMintPayloadWithTokenId = {
+    const payloadWithSign = await lazyMinter.generateSignature({
       to: taskArguments.to,
-      uri: taskArguments.metadata,
+      metadata: taskArguments.metadata,
       price: taskArguments.price,
-      paymentReceiver: taskArguments.paymentreceiver,
-      tokenId: nextTokenId,
-      currencyAddress: NATIVE_TOKEN_ADDRESS
-    };
+      paymentreceiver: taskArguments.paymentreceiver
+    });
 
-    const signature = await signTypedData(
-      currentSigner,
-      {
-        name: 'SignatureMintNFT',
-        version: '1',
-        chainId,
-        verifyingContract: nftContract.address
-      },
-      { MintVoucher: SignatureMintVoucher },
-      payloadToMintStruct(constructedPayload)
-    );
-
-    console.log(
-      JSON.stringify(
-        JSON.stringify({
-          payload: constructedPayload,
-          signature: signature.toString()
-        })
-      )
-    );
+    console.log(JSON.stringify(JSON.stringify(payloadWithSign)));
   });
 
 task('nft:verify-signature')
@@ -116,23 +55,14 @@ task('nft:verify-signature')
   )
   .setAction(async function (taskArguments: TaskArguments, { ethers }) {
     const signers: SignerWithAddress[] = await ethers.getSigners();
-    const currentSigner = signers[0];
 
-    const nftContract = initializeContract(
-      taskArguments.contract,
-      currentSigner
-    );
+    const lazyMinter = new LazyMinter(taskArguments.contract, signers[0]);
 
     const payloadWithSignature = JSON.parse(taskArguments.signedpayload);
 
-    const message = payloadToMintStruct(payloadWithSignature.payload);
+    const success = await lazyMinter.verifySignature(payloadWithSignature);
 
-    const [success] = await nftContract.verify(
-      message,
-      payloadWithSignature.signature
-    );
-
-    console.log('Verification success', success);
+    console.log(`Signature verified status: ${success}`);
   });
 
 task('nft:signature-mint')
@@ -143,25 +73,12 @@ task('nft:signature-mint')
   )
   .setAction(async function (taskArguments: TaskArguments, { ethers }) {
     const signers: SignerWithAddress[] = await ethers.getSigners();
-    const currentSigner = signers[0];
 
-    const nftContract = initializeContract(
-      taskArguments.contract,
-      currentSigner
-    );
+    const lazyMinter = new LazyMinter(taskArguments.contract, signers[0]);
 
     const payloadWithSignature = JSON.parse(taskArguments.signedpayload);
 
-    const payload = payloadWithSignature.payload;
-    const sign = payloadWithSignature.signature;
+    const receipt = await lazyMinter.signatureMint(payloadWithSignature);
 
-    const message = payloadToMintStruct(payload);
-
-    const tx = await nftContract.functions['signatureMint'](message, sign, {
-      value: BigNumber.from(message.price)
-    });
-
-    const receipt = await tx.wait();
-
-    console.log('Tx hash:', receipt.transactionHash);
+    console.log(`Transaction hash: ${receipt.transactionHash}`);
   });
