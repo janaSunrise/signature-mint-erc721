@@ -1,95 +1,21 @@
 import { task, types } from 'hardhat/config';
-import { Contract, constants, utils, BigNumber } from 'ethers';
-
-import { abi as NFTAbi } from '../abis/NFT.json';
+import { constants, BigNumber } from 'ethers';
 
 import type { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import type { TaskArguments } from 'hardhat/types';
-import type { BigNumberish, BytesLike, Signer } from 'ethers';
-import type { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
+import type { JsonRpcProvider } from '@ethersproject/providers';
 
-interface SignatureMintPayload {
-  to: string;
-  uri: string;
-  price: BigNumberish;
-  paymentReceiver: string;
-  currencyAddress: string; // TODO: Add support later in the codebase.
-}
+import {
+  initializeContract,
+  getRoleHash,
+  payloadToMintStruct,
+  signTypedData,
+  SignatureMintVoucher,
+  NATIVE_TOKEN_ADDRESS
+} from './utils';
 
-type SignatureMintPayloadWithTokenId = SignatureMintPayload & {
-  tokenId: BigNumberish;
-};
+import type { SignatureMintPayloadWithTokenId } from './types';
 
-const NATIVE_TOKEN_ADDRESS = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
-
-const SignatureMintVoucher = [
-  { name: 'tokenId', type: 'uint256' },
-  { name: 'to', type: 'address' },
-  {
-    name: 'uri',
-    type: 'string'
-  },
-  {
-    name: 'price',
-    type: 'uint256'
-  },
-  {
-    name: 'currency',
-    type: 'address'
-  },
-  {
-    name: 'paymentReceiver',
-    type: 'address'
-  }
-];
-
-// Utility functions
-const initializeContract = (address: string, signer: Signer) => {
-  return new Contract(address, NFTAbi, signer);
-};
-
-const getRoleHash = (role: string = ''): BytesLike => {
-  if (role === '') {
-    return utils.hexZeroPad([0], 32);
-  }
-
-  return utils.id(role);
-};
-
-const signTypedData = async (
-  signer: Signer,
-  domain: {
-    name: string;
-    version: string;
-    chainId: number;
-    verifyingContract: string;
-  },
-  types: any,
-  message: any
-): Promise<BytesLike> => {
-  const provider = signer.provider as JsonRpcProvider;
-
-  if (!provider) {
-    throw new Error('No provider is available');
-  }
-
-  return await (signer as JsonRpcSigner)._signTypedData(domain, types, message);
-};
-
-const payloadToMintStruct = (payload: SignatureMintPayloadWithTokenId) => {
-  const parsedPrice = utils.parseEther(payload.price.toString());
-
-  return {
-    tokenId: payload.tokenId,
-    to: payload.to,
-    uri: payload.uri,
-    price: parsedPrice,
-    currency: payload.currencyAddress,
-    paymentReceiver: payload.paymentReceiver
-  };
-};
-
-// Tasks
 task('nft:add-minter')
   .addParam('contract', 'The address of the NFT contract')
   .addParam('address', 'Whom to assign the minter role')
