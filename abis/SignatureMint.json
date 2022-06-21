@@ -8,9 +8,9 @@
         {
           "components": [
             {
-              "internalType": "uint256",
-              "name": "tokenId",
-              "type": "uint256"
+              "internalType": "bytes32",
+              "name": "uuid",
+              "type": "bytes32"
             },
             {
               "internalType": "address",

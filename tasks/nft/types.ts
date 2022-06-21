@@ -8,11 +8,11 @@ export interface SignatureMintPayload {
   currencyAddress: string; // TODO: Add support later in the codebase.
 }
 
-export type SignatureMintPayloadWithTokenId = SignatureMintPayload & {
-  tokenId: BigNumberish;
+export type SignatureMintPayloadWithUUID = SignatureMintPayload & {
+  uuid: string;
 };
 
 export interface PayloadWithSign {
-  payload: SignatureMintPayloadWithTokenId;
+  payload: SignatureMintPayloadWithUUID;
   signature: string;
 }

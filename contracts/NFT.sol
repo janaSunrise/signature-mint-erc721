@@ -36,6 +36,9 @@ contract NFT is
     address private constant NATIVE_TOKEN =
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
+    /// @dev Event to emit on signature mint with the `tokenId`.
+    event MintedUsingSignature(uint256 tokenId);
+
     constructor(string memory _name, string memory _symbol)
         ERC721(_name, _symbol)
     {
@@ -48,11 +51,6 @@ contract NFT is
     /// @dev Get the base URI for the contract.
     function _baseURI() internal pure override returns (string memory) {
         return "";
-    }
-
-    /// @dev Get the next tokenId to mint (for signature minting).
-    function nextTokenId() public view returns (uint256) {
-        return _tokenIdCounter.current();
     }
 
     /// @dev Mint a single NFT with the `uri` containing the NFT metadata.
@@ -71,7 +69,9 @@ contract NFT is
     function signatureMint(
         MintVoucher calldata voucher,
         bytes calldata signature
-    ) external payable nonReentrant returns (uint256) {
+    ) external payable nonReentrant {
+        uint256 tokenId = _tokenIdCounter.current();
+
         // Verify voucher
         _processVoucher(voucher, signature);
 
@@ -81,21 +81,13 @@ contract NFT is
         // Collect payment and send it to the receiver.
         _processPayment(voucher);
 
-        // Ensure tokenId is sequential.
-        require(
-            voucher.tokenId == _tokenIdCounter.current(),
-            "voucher tokenId not sequential"
-        );
-
         // Mint using `_mint` the normal way.
-        _mint(to, voucher.tokenId);
-        _setTokenURI(voucher.tokenId, voucher.uri);
+        _mint(to, tokenId);
+        _setTokenURI(tokenId, voucher.uri);
 
-        // Increment the tokenId counter -- The tokenId in the voucher is set automatically in SDK.
         _tokenIdCounter.increment();
 
-        // Return the minted tokenId.
-        return voucher.tokenId;
+        emit MintedUsingSignature(tokenId);
     }
 
     /// @dev Function to process payment for the signature minting.
@@ -155,7 +147,7 @@ contract NFT is
         ) {
             require(
                 hasRole(TRANSFER_ROLE, from) || hasRole(TRANSFER_ROLE, to),
-                "only transfer role holders can transfer"
+                "only transfer role holders"
             );
         }
     }

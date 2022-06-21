@@ -1,4 +1,5 @@
 import { Contract, utils } from 'ethers';
+import { v4 as uuid } from 'uuid';
 
 import { abi as NFTAbi } from '../../abis/NFT.json';
 
@@ -14,13 +15,13 @@ import type {
   JsonRpcSigner,
   TransactionReceipt
 } from '@ethersproject/providers';
-import type { SignatureMintPayloadWithTokenId, PayloadWithSign } from './types';
+import type { SignatureMintPayloadWithUUID, PayloadWithSign } from './types';
 
 export const NATIVE_TOKEN_ADDRESS =
   '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 
 export const SignatureMintVoucher = [
-  { name: 'tokenId', type: 'uint256' },
+  { name: 'uuid', type: 'bytes32' },
   { name: 'to', type: 'address' },
   {
     name: 'uri',
@@ -113,11 +114,11 @@ export class LazyMinter {
     );
   }
 
-  public payloadToMintStruct(payload: SignatureMintPayloadWithTokenId) {
+  public payloadToMintStruct(payload: SignatureMintPayloadWithUUID) {
     const parsedPrice = utils.parseEther(payload.price.toString());
 
     return {
-      tokenId: payload.tokenId,
+      uuid: payload.uuid,
       to: payload.to,
       uri: payload.uri,
       price: parsedPrice,
@@ -127,10 +128,6 @@ export class LazyMinter {
   }
 
   // Contract functions
-  public async nextTokenId(): Promise<number> {
-    return await this.contract.nextTokenId();
-  }
-
   public async getAllRoleMembers(role: string): Promise<string[]> {
     const roleHash = this.getRoleHash(role);
     const memberCount = await this.contract.getRoleMemberCount(roleHash);
@@ -155,7 +152,6 @@ export class LazyMinter {
     paymentreceiver: string;
   }) {
     const chainId = await this.getChainId();
-    const nextTokenId = await this.nextTokenId();
 
     const minterMembers = await this.getAllRoleMembers('MINTER_ROLE');
 
@@ -163,12 +159,20 @@ export class LazyMinter {
       throw new Error('Only minters can mint');
     }
 
-    const constructedPayload: SignatureMintPayloadWithTokenId = {
+    // Generate UUID
+    const buffer = Buffer.alloc(16);
+    uuid({}, buffer);
+
+    const generatedUUID = utils.hexlify(
+      utils.toUtf8Bytes(buffer.toString('hex'))
+    );
+
+    const constructedPayload: SignatureMintPayloadWithUUID = {
       to: payload.to,
       uri: payload.metadata,
       price: payload.price,
       paymentReceiver: payload.paymentreceiver,
-      tokenId: nextTokenId,
+      uuid: generatedUUID,
       currencyAddress: NATIVE_TOKEN_ADDRESS
     };
 
@@ -193,9 +197,7 @@ export class LazyMinter {
   public async verifySignature(
     payloadWithSignature: PayloadWithSign
   ): Promise<boolean> {
-    const message = this.payloadToMintStruct(
-      payloadWithSignature.payload
-    );
+    const message = this.payloadToMintStruct(payloadWithSignature.payload);
 
     const [success] = await this.contract.verify(
       message,

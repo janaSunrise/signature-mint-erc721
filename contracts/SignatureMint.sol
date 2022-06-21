@@ -16,11 +16,11 @@ abstract contract SignatureMint is EIP712 {
      * @dev Mapping to hold the state if token is minted. This is used to verify if a voucher
      * has been used or not.
      */
-    mapping(uint256 => bool) private minted;
+    mapping(bytes32 => bool) private minted;
 
     /// @dev Mint voucher struct.
     struct MintVoucher {
-        uint256 tokenId;
+        bytes32 uuid;
         address to;
         string uri;
         uint256 price;
@@ -29,9 +29,9 @@ abstract contract SignatureMint is EIP712 {
     }
 
     /// @dev Mint voucher typehash, pre-computed to save gas.
-    // keccak256("MintVoucher(uint256 tokenId,address to,string uri,uint256 price,address currency,address paymentReceiver)");
+    // keccak256("MintVoucher(bytes32 uuid,address to,string uri,uint256 price,address currency,address paymentReceiver)");
     bytes32 private constant TYPEHASH =
-        0x77f39aa5d091c6252b91d033e8242810b7167b0b759a19ff525613c9517da05f;
+        0x06b649bcdba226195cba9cad54aac117855d46fb024cdfeb3f80b699d0ca5483;
 
     // solhint-disable-next-line no-empty-blocks
     constructor() EIP712("SignatureMintNFT", "1") {}
@@ -50,7 +50,7 @@ abstract contract SignatureMint is EIP712 {
                 keccak256(
                     abi.encode(
                         TYPEHASH,
-                        voucher.tokenId,
+                        voucher.uuid,
                         voucher.to,
                         keccak256(bytes(voucher.uri)),
                         voucher.price,
@@ -72,7 +72,7 @@ abstract contract SignatureMint is EIP712 {
         returns (bool success, address signer)
     {
         signer = _hash(voucher).recover(signature);
-        success = !minted[voucher.tokenId] && _isValidSigner(signer);
+        success = !minted[voucher.uuid] && _isValidSigner(signer);
     }
 
     /**
@@ -91,7 +91,7 @@ abstract contract SignatureMint is EIP712 {
         require(success, "Invalid voucher");
 
         // Set minted, if valid and invalidate the voucher.
-        minted[voucher.tokenId] = true;
+        minted[voucher.uuid] = true;
 
         return signer;
     }
